@@ -1,5 +1,15 @@
+/*
+Covid 19 Data Exploration 
 
--- Select Data that we are going to be using
+Skills used: Joins, CTE's, Temp Tables, Windows Functions, Aggregate Functions, Creating Views, Converting Data Types
+
+*/
+
+SELECT *
+FROM PortfolioProject..CovidDeaths
+ORDER BY 3, 4
+
+-- Select Data that we are starting with
 SELECT location
 	,	date
 	,	total_cases
@@ -9,7 +19,7 @@ SELECT location
 FROM PortfolioProject..CovidDeaths
 ORDER BY 1, 2;
 
--- Looking at Total Cases vs Total Deaths
+-- Total Cases vs Total Deaths
 -- Shows likelihood of dying if you contract covid in your country
 SELECT location
 	,	date
@@ -20,8 +30,8 @@ FROM PortfolioProject..CovidDeaths
 ORDER BY 1, 2;
 
 
--- Looking at total cases vs the population
--- shows what percentage of population got covid
+-- Total Cases vs Population
+-- shows what percentage of population infected with covid
 
 SELECT location
 	,	date
@@ -32,7 +42,9 @@ FROM PortfolioProject..CovidDeaths
 WHERE location like '%poland%'
 ORDER BY 1, 2;
 
--- Looking at countries with highest infection rate compared to population
+
+-- Countries with highest infection rate compared to population
+
 SELECT Location
 	,	Population
 	,	MAX(total_cases) as HighestInfectionCount
@@ -43,19 +55,23 @@ GROUP BY Location, Population
 ORDER BY 4 DESC;
 
 
--- Showing Countries with Highest Death Count per Population
+-- Countries with Highest Death Count per Population
+
 SELECT Location
-	,	MAX(Total_Deaths) as TotalDeathCount
+	,	MAX(Total_Deaths) AS TotalDeathCount
 FROM PortfolioProject..CovidDeaths
 WHERE continent != '' 
 GROUP BY Location
 ORDER BY TotalDeathCount DESC;
 
 
--- LET'S BREAK THINGS DOWN BY CONTINENT
+
+-- BREAKING THINGS DOWN BY CONTINENT
+
 -- Showing the continents with the highest death count per population
+
 SELECT continent   -- select location ... where continent = '' and location like '%income%'
-	,	MAX(Total_Deaths) as TotalDeathCount
+	,	MAX(Total_Deaths) AS TotalDeathCount
 FROM PortfolioProject..CovidDeaths
 WHERE continent != '' 
 GROUP BY continent
@@ -66,9 +82,9 @@ ORDER BY TotalDeathCount DESC;
 -- GLOBAL NUMBERS
 
 SELECT	date
-	,	SUM(new_cases) as dail_cases
-	,	SUM(new_deaths) as daily_deaths
-	,	(SUM(new_deaths)/SUM(new_cases))*100 as DeathPercentage
+	,	SUM(new_cases) AS dail_cases
+	,	SUM(CAST(new_deaths AS INT)) AS daily_deaths
+	,	(SUM(CAST(new_deaths AS INT))/SUM(new_cases))*100 AS DeathPercentage
 FROM PortfolioProject..CovidDeaths
 WHERE continent != ''
 GROUP BY date
@@ -76,11 +92,26 @@ ORDER BY 1, 2;
 
 
 
--- Looking at total population vs vaccinations
+-- Total population vs Vaccinations
+-- Shows Percentage of Population that has recieved at least one Covid Vaccine
+
+SELECT dea.continent
+	, dea.location
+	, dea.date
+	, dea.population
+	, vac.new_vaccinations
+	, SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location, dea.date) AS RollingPeopleVaccinated
+FROM PortfolioProject..CovidDeaths dea
+JOIN PortfolioProject..CovidVaccinations vac
+	ON dea.location = vac.location
+	AND dea.date = vac.date
+WHERE dea.continent != ''
+ORDER BY 2, 3
 
 
--- use CTE
-WITH PopvsVac (continent, location, date, population, new_vaccinations, RollingPeopleVaccinated)
+-- Using CTE to perform Calculation on Partition By in previous query
+
+WITH PopVac (continent, location, date, population, new_vaccinations, RollingPeopleVaccinated)
 AS 
 (
 SELECT dea.continent
@@ -88,19 +119,19 @@ SELECT dea.continent
 	, dea.date
 	, dea.population
 	, vac.new_vaccinations
-	, SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location, dea.date) as RollingPeopleVaccinated
+	, SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location, dea.date) AS RollingPeopleVaccinated
 FROM PortfolioProject..CovidDeaths dea
 JOIN PortfolioProject..CovidVaccinations vac
 	ON dea.location = vac.location
 	AND dea.date = vac.date
 WHERE dea.continent != ''
---ORDER BY 2, 3
 )
 Select *, (RollingPeopleVaccinated/Population)*100
-From PopvsVac
+FROM PopVac
 
 
--- temp table
+-- Using Temp Table to perform Calculation on Partition By in previous query
+
 DROP TABLE IF EXISTS #PercentPopulationVaccinated
 CREATE TABLE #PercentPopulationVaccinated
 (
@@ -111,6 +142,7 @@ Population numeric,
 New_Vaccinations numeric,
 RollingPeopleVaccinated numeric
 )
+
 INSERT INTO #PercentPopulationVaccinated
 SELECT dea.continent
 	, dea.location
@@ -129,9 +161,11 @@ From #PercentPopulationVaccinated
 ORDER BY 2, 3;
 
 
--- VIEWS --
--- Creating View to store data for later visualizations
 
+-- Creating VIEWS to store data for later visualizations
+
+
+-- Rolling sum of people vaccinated at least one time
 
 CREATE VIEW PercentPopulationVaccinated AS
 SELECT dea.continent
@@ -147,6 +181,15 @@ JOIN PortfolioProject..CovidVaccinations vac
 WHERE dea.continent != '';
 
 
-SELECT *
-FROM PercentPopulationVaccinated
+-- Total deaths per continent
+
+CREATE VIEW TotalDeathsPerContinent AS
+SELECT location 
+	,	MAX(Total_Deaths) AS TotalDeathCount
+FROM PortfolioProject..CovidDeaths
+WHERE continent = '' 
+	AND location NOT LIKE '%income%' 
+	AND location NOT IN ('World', 'International')
+GROUP BY location;
+
 

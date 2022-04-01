@@ -156,40 +156,70 @@ JOIN PortfolioProject..CovidVaccinations vac
 	AND dea.date = vac.date
 WHERE dea.continent != ''
 
-Select *, (RollingPeopleVaccinated/Population)*100
-From #PercentPopulationVaccinated
-ORDER BY 2, 3;
+SELECT *, (RollingPeopleVaccinated/Population)*100
+FROM #PercentPopulationVaccinated
+ORDER BY 2, 3
+;
 
 
 
--- Creating VIEWS to store data for later visualizations
+-- data for later visualizations
+
+-- 1.
+-- worldwide deaths, cases, death rate
+SELECT SUM(new_cases) AS total_cases
+	, SUM(cast(new_deaths AS int)) AS total_deaths
+	, SUM(cast(new_deaths AS int))/SUM(New_Cases)*100 AS DeathPercentage
+FROM PortfolioProject..CovidDeaths
+WHERE continent != '';
 
 
--- Rolling sum of people vaccinated at least one time
+-- 2.
+-- population, cases, deaths per continent 
+SELECT Location
+	, Population
+	, SUM(cast(new_cases AS int)) AS TotalCasesCount
+	, SUM(cast(new_deaths AS int)) AS TotalDeathCount
+FROM PortfolioProject..CovidDeaths
+WHERE continent = '' 
+AND location NOT IN ('World', 'European Union', 'International')
+AND location NOT LIKE '%income%'
+GROUP BY location, population;
+--ORDER BY TotalDeathCount DESC
 
-CREATE VIEW PercentPopulationVaccinated AS
+
+
+-- 3.
+-- population infected, deathrate per country
+SELECT Location
+	, Continent
+	, Population
+	, MAX((total_cases/population))*100 AS PercentPopulationInfected
+	, (MAX(total_deaths)/MAX(total_cases))*100 AS DeathRate
+FROM PortfolioProject..CovidDeaths
+GROUP BY Location, Continent, Population;
+--ORDER BY PercentPopulationInfected DESC
+
+
+
+-- 4.
+-- new_cases per day per country 
+SELECT Location
+	, CAST(date as date) AS date
+	, new_cases
+FROM PortfolioProject..CovidDeaths
+WHERE continent != '';
+
+-- 5. 
+-- people vaccinated (vaccination rate per country)
 SELECT dea.continent
 	, dea.location
-	, dea.date
+	, CAST(dea.date AS DATE) AS date
 	, dea.population
 	, vac.new_vaccinations
-	, SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location, dea.date) as RollingPeopleVaccinated
+	, vac.people_vaccinated
 FROM PortfolioProject..CovidDeaths dea
 JOIN PortfolioProject..CovidVaccinations vac
 	ON dea.location = vac.location
 	AND dea.date = vac.date
 WHERE dea.continent != '';
-
-
--- Total deaths per continent
-
-CREATE VIEW TotalDeathsPerContinent AS
-SELECT location 
-	,	MAX(Total_Deaths) AS TotalDeathCount
-FROM PortfolioProject..CovidDeaths
-WHERE continent = '' 
-	AND location NOT LIKE '%income%' 
-	AND location NOT IN ('World', 'International')
-GROUP BY location;
-
-
